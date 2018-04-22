@@ -1,7 +1,10 @@
 package main
 
 import (
+	"bytes"
+	"encoding/json"
 	"flag"
+	"fmt"
 	"net/http"
 	"time"
 )
@@ -81,27 +84,83 @@ func main() {
 	verificationKey := flag.String("verificationKey", "", "Eero verification key")
 	flag.Parse()
 
-	if *verificationKey != "" {
-		verifyKey(verificationKey)
+	if *verificationKey != "" && *sessionKey != "" {
+		verifyKey(verificationKey, sessionKey)
 	} else if *loginID != "" {
-		login(loginID)
+		sessionKey := login(loginID)
+		fmt.Printf("sessionKey=%s\n", sessionKey)
 	} else if *sessionKey != "" {
 		monitor(sessionKey)
+	} else {
+		fmt.Printf("Unknow set of arguments...")
+		return
 	}
-
 }
 
-func login(loginID *string) {
-	resp, err := http.Get("https://www.merriam-webster.com/word-of-the-day")
+func login(loginID *string) string {
+	fmt.Printf("Login: %s\n", *loginID)
+
+	loginRequest := LoginRequest{Login: *loginID}
+	b := new(bytes.Buffer)
+	json.NewEncoder(b).Encode(loginRequest)
+
+	r, err := http.Post("https://api-user.e2ro.com/2.2/login?", "application/json; charset=utf-8", b)
 	if err != nil {
 		panic(err)
 	}
-	defer resp.Body.Close()
+	defer r.Body.Close()
 
+	var login LoginResponse
+	if r.Body == nil {
+		fmt.Printf("Body was empty.\n")
+		return ""
+	}
+	err = json.NewDecoder(r.Body).Decode(&login)
+	if err != nil {
+		panic(err)
+	}
+
+	return login.Data.UserToken
 }
 
-func verifyKey(key *string) {
+func verifyKey(verificationKey *string, sessionKey *string) string {
+	fmt.Printf("Verify: %s, %s\n", *verificationKey, *sessionKey)
 
+	verifyRequest := LoginVerifyRequest{Code: *verificationKey}
+	b := new(bytes.Buffer)
+	json.NewEncoder(b).Encode(verifyRequest)
+
+	client := &http.Client{}
+	req, err := http.NewRequest("POST", "https://api-user.e2ro.com/2.2/login/verify?", b)
+	if err != nil {
+		panic(err)
+	}
+
+	sessionString := fmt.Sprintf("s=%s", *sessionKey)
+	fmt.Printf("Session Key: %s\n", sessionString)
+	req.Header.Add("Cookie", sessionString)
+	req.Header.Add("Accept", "application/json")
+	req.Header.Add("Content-Type", "application/json")
+
+	r, err := client.Do(req)
+	if err != nil {
+		panic(err)
+	}
+
+	defer r.Body.Close()
+
+	var verifyResponse LoginVerifyResponse
+	if r.Body == nil {
+		fmt.Printf("Body was empty.\n")
+		return ""
+	}
+	err = json.NewDecoder(r.Body).Decode(&verifyResponse)
+	if err != nil {
+		panic(err)
+	}
+
+	fmt.Println(verifyResponse)
+	return ""
 }
 
 func monitor(sessionKey *string) {
