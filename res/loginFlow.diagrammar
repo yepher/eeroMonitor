@@ -1,0 +1,12 @@
+Title: Login Flow (Success)
+
+
+Client->Eero: Login(username)
+Eero->Client: user_token/Cookie
+Eero->Email: verification code
+Email->Client: Out of band verification code
+Client->Eero: verify(cookie, code)
+Eero->Client: Account Info, array of networks
+
+--- Subsequent requests pass user_token, network ID 
+
