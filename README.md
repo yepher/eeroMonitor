@@ -5,9 +5,9 @@ This is a quick proof of concept based on [this](https://community.eero.com/t/q5
 
 TODO:
 
-[] Dump monitor info out console
-[] Sanitize the API samples so they can be put in this repo
-[] Create a Postman collection for accessing Eero more easily
+* Dump monitor info out console
+* Sanitize the API samples so they can be put in this repo
+* Create a Postman collection for accessing Eero more easily
 
 
 ## Eero Monitor
