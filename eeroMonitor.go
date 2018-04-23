@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"net/http"
 	"time"
+
+	"github.com/pkg/errors"
 )
 
 // LoginRequest is use to login to Eero. Set the account email address
@@ -130,6 +132,7 @@ func main() {
 	loginID := flag.String("loginID", "", "Eero loginId")
 	verificationKey := flag.String("verificationKey", "", "Eero verification key")
 	networkID := flag.String("networkID", "", "Network ID to monitor")
+	command := flag.String("command", "monitor", "Actions to perform")
 	flag.Parse()
 
 	if *verificationKey != "" && *sessionKey != "" {
@@ -144,72 +147,44 @@ func main() {
 		fmt.Printf("\t./eeroMonitor -sessionKey=\"%s\" -verificationKey=\n", sessionKey)
 
 	} else if *sessionKey != "" && *networkID != "" {
-		monitor(sessionKey, networkID)
+		if *command == "" || *command == "monitor" {
+			monitor(sessionKey, networkID)
+		} else {
+			fmt.Printf("Unknown command: %s\n", *command)
+
+		}
 
 	} else {
-		fmt.Printf("Unknow set of arguments...")
+		fmt.Printf("Unknow set of arguments...\n")
+		fmt.Printf("\t./eeroMonitor -loginID=[YOUR_LOGIN_ID]\n")
 		return
 	}
 }
 
 func login(loginID *string) string {
 	fmt.Printf("Login: %s\n", *loginID)
+	url := "https://api-user.e2ro.com/2.2/login?"
 
 	loginRequest := LoginRequest{Login: *loginID}
-	b := new(bytes.Buffer)
-	json.NewEncoder(b).Encode(loginRequest)
+	var loginResponse LoginResponse
 
-	r, err := http.Post("https://api-user.e2ro.com/2.2/login?", "application/json; charset=utf-8", b)
-	if err != nil {
-		panic(err)
-	}
-	defer r.Body.Close()
-
-	var login LoginResponse
-	if r.Body == nil {
-		fmt.Printf("Body was empty.\n")
-		return ""
-	}
-	err = json.NewDecoder(r.Body).Decode(&login)
+	err := doRequest(url, nil, &loginRequest, &loginResponse)
+	//r, err := http.Post("https://api-user.e2ro.com/2.2/login?", "application/json; charset=utf-8", b)
 	if err != nil {
 		panic(err)
 	}
 
-	return login.Data.UserToken
+	return loginResponse.Data.UserToken
 }
 
 func verifyKey(verificationKey *string, sessionKey *string) string {
 	fmt.Printf("Verify: %s, %s\n", *verificationKey, *sessionKey)
 
 	verifyRequest := LoginVerifyRequest{Code: *verificationKey}
-	b := new(bytes.Buffer)
-	json.NewEncoder(b).Encode(verifyRequest)
-
-	client := &http.Client{}
-	req, err := http.NewRequest("POST", "https://api-user.e2ro.com/2.2/login/verify?", b)
-	if err != nil {
-		panic(err)
-	}
-
-	sessionString := fmt.Sprintf("s=%s", *sessionKey)
-	fmt.Printf("Session Key: %s\n", sessionString)
-	req.Header.Add("Cookie", sessionString)
-	req.Header.Add("Accept", "application/json")
-	req.Header.Add("Content-Type", "application/json")
-
-	r, err := client.Do(req)
-	if err != nil {
-		panic(err)
-	}
-
-	defer r.Body.Close()
-
 	var verifyResponse LoginVerifyResponse
-	if r.Body == nil {
-		fmt.Printf("Body was empty.\n")
-		return ""
-	}
-	err = json.NewDecoder(r.Body).Decode(&verifyResponse)
+	url := "https://api-user.e2ro.com/2.2/login/verify?"
+	err := doRequest(url, sessionKey, &verifyRequest, &verifyResponse)
+
 	if err != nil {
 		panic(err)
 	}
@@ -228,33 +203,13 @@ func monitor(sessionKey *string, networkID *string) {
 	url := fmt.Sprintf("https://api-user.e2ro.com%s/devices?thread=true", *networkID)
 	fmt.Printf("URL: %s\n", url)
 
+	// TODO: Query /2.2/networks/[NETWORK_ID]/burst_reporters?
+	// to schedule next time to query usage
+
 	for {
-		client := &http.Client{}
-		req, err := http.NewRequest("GET", url, nil)
-		if err != nil {
-			panic(err)
-		}
-
-		sessionString := fmt.Sprintf("s=%s", *sessionKey)
-		//fmt.Printf("Session Key: %s\n", sessionString)
-		req.Header.Add("Cookie", sessionString)
-		req.Header.Add("Accept", "application/json")
-		req.Header.Add("Content-Type", "application/json")
-
-		r, err := client.Do(req)
-		if err != nil {
-			panic(err)
-		}
-
-		defer r.Body.Close()
-
 		var networkDeviceResponse NetworkDeviceResponse
-		if r.Body == nil {
-			fmt.Printf("Body was empty.\n")
-			panic("Body was empty.")
-		}
+		err := doRequest(url, sessionKey, nil, &networkDeviceResponse)
 
-		err = json.NewDecoder(r.Body).Decode(&networkDeviceResponse)
 		if err != nil {
 			panic(err)
 		}
@@ -273,7 +228,58 @@ func monitor(sessionKey *string, networkID *string) {
 		if foundResult {
 			fmt.Printf("\n\n\n\n")
 		}
-		time.Sleep(5 * time.Second)
+		time.Sleep(60 * time.Second)
+	}
+}
+
+func doRequest(url string, token *string, reqObj interface{}, respObj interface{}) error {
+	method := "GET"
+
+	b := new(bytes.Buffer)
+	if reqObj != nil {
+		method = "POST"
+		json.NewEncoder(b).Encode(reqObj)
+	} else {
+		b = nil
 	}
 
+	client := &http.Client{}
+	req, err := http.NewRequest(method, url, b)
+	if err != nil {
+		return err
+	}
+
+	req.Header.Add("Accept", "application/json")
+
+	if token != nil {
+		sessionString := fmt.Sprintf("s=%s", *token)
+		//fmt.Printf("Session Key: %s\n", sessionString)
+		req.Header.Add("Cookie", sessionString)
+	}
+
+	if req != nil {
+		req.Header.Add("Content-Type", "application/json")
+	}
+
+	r, err := client.Do(req)
+	if err != nil {
+		return err
+	}
+
+	defer r.Body.Close()
+
+	if r.StatusCode != 200 {
+		return errors.Errorf("Request failed: (%d) - %s\nURL: %s %s\nRequest: %s", r.StatusCode, r.Status, method, url, reqObj)
+	}
+
+	if r.Body == nil && respObj == nil {
+		return nil
+	}
+
+	err = json.NewDecoder(r.Body).Decode(respObj)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }

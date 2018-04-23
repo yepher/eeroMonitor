@@ -48,8 +48,9 @@ Once Eero verifies the `user_token` it is used in subsequent requests to access 
 
 Eero uses a REST API where the body of the requests and responses are formed in JSON. The API uses `Cookie: s=[USER_TOKEN]` in each of the requests for access control.
 
-* *Host*: `api-user.e2ro.com`
+* *Base URL*: `https://api-user.e2ro.com`
 * *User-Agent:* `eero-ios/2.16.0 (iPhone8,1; iOS 11.3)`
+* *Authentication*: HTTP Cookie
 
 | Name  | URL  | Description  |
 |:-:|---|---|
@@ -78,3 +79,8 @@ It seems most responses from the Eero server has a meta dictionary that is used 
     "server_time": "2020-09-21T23:00:01.123Z"
 },
 ```
+
+
+## Other Related Projects
+
+* Python [343max/eero-client](https://github.com/343max/eero-client)
