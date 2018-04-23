@@ -260,16 +260,20 @@ func monitor(sessionKey *string, networkID *string) {
 		}
 
 		networks := networkDeviceResponse.Data
+		foundResult := false
 		for _, device := range networks {
 			up := device.Usage.UpMbps
 			down := device.Usage.DownMbps
 			if up > 0 || down > 0 {
+				foundResult = true
 				fmt.Printf("%s - %s (%f Mbps, %f Mbps)\n", device.Hostname, device.DeviceType, device.Usage.DownMbps, device.Usage.UpMbps)
 			}
 		}
 
+		if foundResult {
+			fmt.Printf("\n\n\n\n")
+		}
 		time.Sleep(5 * time.Second)
-		fmt.Printf("\n\n\n\n")
 	}
 
 }

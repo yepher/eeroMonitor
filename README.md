@@ -5,9 +5,11 @@ This is a quick proof of concept based on [this](https://community.eero.com/t/q5
 
 TODO:
 
-* Dump monitor info out console
-* Sanitize the API samples so they can be put in this repo
-* Create a Postman collection for accessing Eero more easily
+- [x] Dump monitor info out console
+- [ ] Dump Network details
+- [ ] Expose SNMP traps
+- [ ] Sanitize the API samples so they can be put in this repo
+- [ ] Create a Postman collection for accessing Eero more easily
 
 
 ## Eero Monitor
@@ -19,8 +21,12 @@ TODO:
 	* Request verification code:
 		* `eeroMonitor --loginID=[email@example.com]`
 		* This returns a session key and causes Eero to send a verification code via email
+
 	* Verify code to activate session key:
 		* `eeroMonitor -verificationKey=123456 -sessionKey="6654321|232c2aoj93fvdes82eg99ase7e"`
+
+	* Monitor network usage:
+		* `eeroMonitor -sessionKey="6654321|232c2aoj93fvdes82eg99ase7e" -networkID=12345`
 
 
 * Once the session key is is verified pass that as `-sessionKey`
